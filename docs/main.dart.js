@@ -97169,32 +97169,30 @@ a8(){return new A.FW(new A.tQ(new A.cZ()),new A.Ci(new A.cZ()),new A.af4(new A.c
 A.FW.prototype={
 aj(){this.aw()
 this.r=this.d.kz()},
-rF(){var s=0,r=A.q(t.H),q,p=2,o=[],n=[],m=this,l,k,j,i,h,g,f,e,d,c,b,a
-var $async$rF=A.m(function(a0,a1){if(a0===1){o.push(a1)
+rF(){var s=0,r=A.q(t.H),q,p=2,o=[],n=[],m=this,l,k,j,i,h,g,f,e,d,c,b
+var $async$rF=A.m(function(a,a0){if(a===1){o.push(a0)
 s=p}for(;;)switch(s){case 0:if(m.w||m.x){s=1
 break}m.L(new A.asx(m))
 p=4
 s=7
 return A.j(m.e.wr(),$async$rF)
-case 7:l=a1
+case 7:l=a0
 k=A.fI(J.O(J.a_(l,"id")),null)
-if(k==null){c=A.a5("ID do pedido n\xe3o recebido")
-throw A.f(c)}s=8
+if(k==null){d=A.a5("ID do pedido n\xe3o recebido")
+throw A.f(d)}s=8
 return A.j(m.f.ws(k),$async$rF)
-case 8:j=a1
-c=J.a_(j,"sandboxInitPoint")
-i=c==null?null:J.O(c)
-c=J.a_(j,"initPoint")
-h=c==null?null:J.O(c)
-g=i!=null&&i.length!==0?i:h
-if(g==null||g.length===0){c=A.a5("Link de pagamento n\xe3o recebido")
-throw A.f(c)}f=A.aNt(g)
-if(f==null){c=A.a5("Link de pagamento inv\xe1lido")
-throw A.f(c)}s=9
-return A.j(A.aI1(f,B.Nj),$async$rF)
-case 9:e=a1
-if(!e){c=A.a5("N\xe3o foi poss\xedvel abrir o Mercado Pago")
-throw A.f(c)}if(m.c==null){n=[1]
+case 8:j=a0
+d=J.a_(j,"initPoint")
+i=d==null?null:J.O(d)
+h=i
+if(h==null||h.length===0){d=A.a5("Link de pagamento n\xe3o recebido")
+throw A.f(d)}g=A.aNt(h)
+if(g==null){d=A.a5("Link de pagamento inv\xe1lido")
+throw A.f(d)}s=9
+return A.j(A.aI1(g,B.Nj),$async$rF)
+case 9:f=a0
+if(!f){d=A.a5("N\xe3o foi poss\xedvel abrir o Mercado Pago")
+throw A.f(d)}if(m.c==null){n=[1]
 s=5
 break}m.L(new A.asy(m,k))
 m.xL(k)
@@ -97202,12 +97200,12 @@ n.push(6)
 s=5
 break
 case 4:p=3
-a=o.pop()
-d=A.a4(a)
-c=m.c
-if(c==null){n=[1]
+b=o.pop()
+e=A.a4(b)
+d=m.c
+if(d==null){n=[1]
 s=5
-break}c.U(t.q).f.bJ(A.cq(null,null,null,null,null,B.n,null,A.F(B.c.dz(J.O(d),"Exception: ",""),null,null,null,null,null,null),null,B.L,null,null,null,null,null,null,null,null,null,null))
+break}d.U(t.q).f.bJ(A.cq(null,null,null,null,null,B.n,null,A.F(B.c.dz(J.O(e),"Exception: ",""),null,null,null,null,null,null),null,B.L,null,null,null,null,null,null,null,null,null,null))
 n.push(6)
 s=5
 break
