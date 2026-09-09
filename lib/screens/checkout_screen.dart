@@ -440,7 +440,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       height: 24,
                                       child: CircularProgressIndicator(),
                                     )
-                                  : const Text('Pagar com Mercado Pago'),
+                                  : const Text('Pagar Agora'),
                             ),
                           ),
                         ],
