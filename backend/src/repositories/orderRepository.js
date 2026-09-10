@@ -223,46 +223,17 @@ async function createOrderFromCart(userId) {
                 subtotal
             ]);
 
-
-
-
-            await client.query(`
-
-                UPDATE products
-
-                SET
-
-                    stock = stock - $1,
-
-                    updated_at = CURRENT_TIMESTAMP
-
-
-                WHERE id = $2
-
-
-            `,
-            [
-                item.quantity,
-                item.product_id
-            ]);
-
         }
 
 
-
-
-        // limpa carrinho
-
-        await client.query(`
-
-            DELETE FROM cart_items
-
-            WHERE user_id = $1
-
-        `,
-        [
-            userId
-        ]);
+        // ======================================================
+        // IMPORTANTE:
+        // NÃO DIMINUI O ESTOQUE AQUI
+        // NÃO LIMPA O CARRINHO AQUI
+        //
+        // Isso será feito somente quando o Mercado Pago
+        // confirmar o pagamento como "approved".
+        // ======================================================
 
 
 
