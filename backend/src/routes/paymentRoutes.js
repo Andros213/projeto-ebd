@@ -1,15 +1,47 @@
 const express = require('express');
 
 const {
-    createPreference
+
+    createPreference,
+
+    processPayment
+
 } = require('../controllers/paymentController');
 
-const authMiddleware = require('../middleware/authMiddleware');
+const authMiddleware =
+    require('../middleware/authMiddleware');
 
-const router = express.Router();
+const router =
+    express.Router();
 
-router.use(authMiddleware);
 
-router.post('/:orderId', createPreference);
+// ======================================================
+// AUTENTICAÇÃO
+// ======================================================
+
+router.use(
+    authMiddleware
+);
+
+
+// ======================================================
+// CHECKOUT PRO — ROTA ATUAL
+// ======================================================
+
+router.post(
+    '/:orderId',
+    createPreference
+);
+
+
+// ======================================================
+// PAYMENT BRICK
+// ======================================================
+
+router.post(
+    '/:orderId/process',
+    processPayment
+);
+
 
 module.exports = router;
