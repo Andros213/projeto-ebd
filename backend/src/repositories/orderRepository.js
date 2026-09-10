@@ -13,7 +13,6 @@ async function createOrderFromCart(userId) {
 
         await client.query('BEGIN');
 
-
         const cartResult = await client.query(`
             SELECT
                 ci.product_id,
@@ -23,39 +22,34 @@ async function createOrderFromCart(userId) {
                 p.stock,
                 p.active
             FROM cart_items ci
-            INNER JOIN products p 
+            INNER JOIN products p
                 ON p.id = ci.product_id
             WHERE ci.user_id = $1
             FOR UPDATE OF p
-        `,[userId]);
+        `, [userId]);
 
 
-
-        if(cartResult.rows.length === 0){
+        if (cartResult.rows.length === 0) {
             throw new Error('Carrinho vazio');
         }
-
 
 
         let total = 0;
 
 
-        for(const item of cartResult.rows){
+        for (const item of cartResult.rows) {
 
-
-            if(!item.active){
+            if (!item.active) {
                 throw new Error(
                     `Produto "${item.name}" não está disponível`
                 );
             }
 
 
-            if(item.quantity > item.stock){
-
+            if (item.quantity > item.stock) {
                 throw new Error(
                     `Estoque insuficiente para "${item.name}". Disponível: ${item.stock}`
                 );
-
             }
 
 
@@ -64,50 +58,34 @@ async function createOrderFromCart(userId) {
         }
 
 
-
         const userResult = await client.query(`
-
             SELECT church_id
-
             FROM users
-
             WHERE id = $1
-
             LIMIT 1
-
-        `,[userId]);
-
+        `, [userId]);
 
 
-        if(userResult.rows.length === 0){
-
+        if (userResult.rows.length === 0) {
             throw new Error('Usuário não encontrado');
-
         }
-
 
 
         const churchId = userResult.rows[0].church_id;
 
 
-
-        if(!churchId){
-
+        if (!churchId) {
             throw new Error(
                 'Usuário não possui igreja vinculada'
             );
-
         }
-
 
 
         // ======================================================
         // CRIA PEDIDO
         // ======================================================
 
-
         const orderResult = await client.query(`
-
             INSERT INTO orders
             (
                 user_id,
@@ -115,7 +93,6 @@ async function createOrderFromCart(userId) {
                 total,
                 status
             )
-
             VALUES
             (
                 $1,
@@ -123,8 +100,6 @@ async function createOrderFromCart(userId) {
                 $3,
                 'pending'
             )
-
-
             RETURNING
                 id,
                 user_id,
@@ -132,65 +107,51 @@ async function createOrderFromCart(userId) {
                 total,
                 status,
                 created_at
-
-        `,[
+        `, [
             userId,
             churchId,
             total
         ]);
 
 
-
         const order = orderResult.rows[0];
-
 
 
         // ======================================================
         // CRIA ENTREGA AUTOMÁTICA
         // ======================================================
 
-
         await client.query(`
-
             INSERT INTO deliveries
             (
                 order_id,
                 church_id,
                 status
             )
-
             VALUES
             (
                 $1,
                 $2,
                 'pending'
             )
-
-        `,
-        [
+        `, [
             order.id,
             churchId
         ]);
-
-
 
 
         // ======================================================
         // CRIA ITENS DO PEDIDO
         // ======================================================
 
-
-        for(const item of cartResult.rows){
-
+        for (const item of cartResult.rows) {
 
             const subtotal =
                 Number(item.price) *
                 Number(item.quantity);
 
 
-
             await client.query(`
-
                 INSERT INTO order_items
                 (
                     order_id,
@@ -200,8 +161,6 @@ async function createOrderFromCart(userId) {
                     unit_price,
                     subtotal
                 )
-
-
                 VALUES
                 (
                     $1,
@@ -211,10 +170,7 @@ async function createOrderFromCart(userId) {
                     $5,
                     $6
                 )
-
-
-            `,
-            [
+            `, [
                 order.id,
                 item.product_id,
                 item.name,
@@ -236,23 +192,19 @@ async function createOrderFromCart(userId) {
         // ======================================================
 
 
-
         await client.query('COMMIT');
 
 
         return order;
 
 
-
-    }catch(error){
-
+    } catch (error) {
 
         await client.query('ROLLBACK');
 
         throw error;
 
-
-    }finally{
+    } finally {
 
         client.release();
 
@@ -261,12 +213,205 @@ async function createOrderFromCart(userId) {
 }
 
 
+// ======================================================
+// CONFIRMAR PEDIDO APÓS PAGAMENTO APROVADO
+// ======================================================
+
+async function confirmPaidOrder(orderId) {
+
+    const client = await pool.connect();
+
+    try {
+
+        await client.query('BEGIN');
+
+
+        // ==================================================
+        // BLOQUEIA O PEDIDO
+        // ==================================================
+
+        const orderResult = await client.query(`
+            SELECT
+                id,
+                user_id,
+                total,
+                status
+            FROM orders
+            WHERE id = $1
+            FOR UPDATE
+        `, [
+            orderId
+        ]);
+
+
+        if (orderResult.rows.length === 0) {
+            throw new Error(
+                `Pedido ${orderId} não encontrado`
+            );
+        }
+
+
+        const order = orderResult.rows[0];
+
+
+        // ==================================================
+        // SE JÁ FOI CONFIRMADO, NÃO PROCESSA NOVAMENTE
+        // ==================================================
+
+        if (order.status === 'confirmed') {
+
+            await client.query('COMMIT');
+
+            return order;
+
+        }
+
+
+        // ==================================================
+        // BUSCA ITENS DO PEDIDO
+        // E BLOQUEIA OS PRODUTOS
+        // ==================================================
+
+        const itemsResult = await client.query(`
+            SELECT
+                oi.id,
+                oi.product_id,
+                oi.product_name,
+                oi.quantity,
+                p.stock,
+                p.active
+            FROM order_items oi
+            INNER JOIN products p
+                ON p.id = oi.product_id
+            WHERE oi.order_id = $1
+            FOR UPDATE OF p
+        `, [
+            orderId
+        ]);
+
+
+        if (itemsResult.rows.length === 0) {
+            throw new Error(
+                `Pedido ${orderId} não possui itens`
+            );
+        }
+
+
+        // ==================================================
+        // CONFERE ESTOQUE NOVAMENTE
+        // ==================================================
+
+        for (const item of itemsResult.rows) {
+
+            if (!item.active) {
+                throw new Error(
+                    `Produto "${item.product_name}" não está disponível`
+                );
+            }
+
+
+            if (
+                Number(item.quantity) >
+                Number(item.stock)
+            ) {
+
+                throw new Error(
+                    `Estoque insuficiente para "${item.product_name}". Disponível: ${item.stock}`
+                );
+
+            }
+
+        }
+
+
+        // ==================================================
+        // DIMINUIR ESTOQUE
+        // ==================================================
+
+        for (const item of itemsResult.rows) {
+
+            await client.query(`
+                UPDATE products
+                SET
+                    stock = stock - $1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $2
+            `, [
+                item.quantity,
+                item.product_id
+            ]);
+
+        }
+
+
+        // ==================================================
+        // CONFIRMAR PEDIDO
+        // ==================================================
+
+        const confirmedResult = await client.query(`
+            UPDATE orders
+            SET
+                status = 'confirmed',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            RETURNING *
+        `, [
+            orderId
+        ]);
+
+
+        const confirmedOrder =
+            confirmedResult.rows[0];
+
+
+        // ==================================================
+        // REMOVER ITENS DO CARRINHO
+        // ==================================================
+
+        await client.query(`
+            DELETE FROM cart_items
+            WHERE user_id = $1
+              AND product_id IN (
+                  SELECT product_id
+                  FROM order_items
+                  WHERE order_id = $2
+              )
+        `, [
+            order.user_id,
+            orderId
+        ]);
+
+
+        // ==================================================
+        // CONFIRMA TRANSAÇÃO
+        // ==================================================
+
+        await client.query('COMMIT');
+
+
+        return confirmedOrder;
+
+
+    } catch (error) {
+
+        await client.query('ROLLBACK');
+
+        throw error;
+
+    } finally {
+
+        client.release();
+
+    }
+
+}
+
 
 // ======================================================
 // ADMIN - LISTAR TODOS OS PEDIDOS
 // ======================================================
 
-async function listAllOrders(){
+async function listAllOrders() {
 
     const result = await pool.query(`
         SELECT
@@ -310,17 +455,14 @@ async function listAllOrders(){
 }
 
 
-
 // ======================================================
 // ADMIN - BUSCAR PEDIDO
 // ======================================================
 
-async function findOrderById(orderId){
+async function findOrderById(orderId) {
 
     const orderResult = await pool.query(`
-
         SELECT
-
             o.id,
             o.user_id,
             u.name AS customer_name,
@@ -332,97 +474,60 @@ async function findOrderById(orderId){
             o.created_at,
             o.updated_at
 
-
         FROM orders o
 
-
         INNER JOIN users u
-
-            ON u.id=o.user_id
-
+            ON u.id = o.user_id
 
         INNER JOIN churches c
+            ON c.id = o.church_id
 
-            ON c.id=o.church_id
-
-
-        WHERE o.id=$1
-
-
-    `,
-    [
+        WHERE o.id = $1
+    `, [
         orderId
     ]);
 
 
-
-    if(orderResult.rows.length===0){
-
+    if (orderResult.rows.length === 0) {
         return null;
-
     }
 
 
-
     const items = await pool.query(`
-
         SELECT *
-
         FROM order_items
-
-        WHERE order_id=$1
-
-
+        WHERE order_id = $1
         ORDER BY id ASC
-
-    `,
-    [
+    `, [
         orderId
     ]);
 
 
-
     return {
-
         ...orderResult.rows[0],
-
-        items:items.rows
-
+        items: items.rows
     };
 
-
 }
-
 
 
 // ======================================================
 // STATUS
 // ======================================================
 
-async function updateOrderStatus(orderId,status){
+async function updateOrderStatus(orderId, status) {
 
     const result = await pool.query(`
-
         UPDATE orders
-
         SET
-
-            status=$1,
-
-            updated_at=CURRENT_TIMESTAMP
-
-
-        WHERE id=$2
-
-
+            status = $1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
         RETURNING *
-
-    `,
-    [
+    `, [
         status,
         orderId
     ]);
-
 
 
     return result.rows[0] || null;
@@ -430,12 +535,11 @@ async function updateOrderStatus(orderId,status){
 }
 
 
-
 // ======================================================
-// CLIENTE
+// CLIENTE - LISTAR PEDIDOS
 // ======================================================
 
-async function listOrdersByUser(userId){
+async function listOrdersByUser(userId) {
 
     const result = await pool.query(`
         SELECT
@@ -461,18 +565,20 @@ async function listOrdersByUser(userId){
         WHERE o.user_id = $1
 
         ORDER BY o.created_at DESC
-    `,
-    [
+    `, [
         userId
     ]);
 
     return result.rows;
+
 }
 
 
+// ======================================================
+// CLIENTE - BUSCAR PEDIDO
+// ======================================================
 
-
-async function findOrderByIdForUser(orderId, userId){
+async function findOrderByIdForUser(orderId, userId) {
 
     const result = await pool.query(`
         SELECT
@@ -499,38 +605,44 @@ async function findOrderByIdForUser(orderId, userId){
           AND o.user_id = $2
 
         LIMIT 1
-    `,
-    [
+    `, [
         orderId,
         userId
     ]);
 
+
     if (result.rows.length === 0) {
         return null;
     }
+
 
     const items = await pool.query(`
         SELECT *
         FROM order_items
         WHERE order_id = $1
         ORDER BY id ASC
-    `,
-    [
+    `, [
         orderId
     ]);
+
 
     return {
         ...result.rows[0],
         items: items.rows
     };
+
 }
 
 
+// ======================================================
+// EXPORT
+// ======================================================
 
-
-module.exports={
+module.exports = {
 
     createOrderFromCart,
+
+    confirmPaidOrder,
 
     listAllOrders,
 
