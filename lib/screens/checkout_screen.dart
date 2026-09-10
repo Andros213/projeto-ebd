@@ -185,7 +185,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
 
       // 2. Cria a Preference do Mercado Pago.
-      // Ela será usada pelo Payment Brick.
       final preference = await paymentService.createPreference(
         orderId: orderId,
       );
@@ -313,6 +312,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
         if (paymentStatus == 'approved') {
           await handleApprovedPayment(orderId);
+
           return;
         }
 
@@ -358,7 +358,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         setState(() {
           paymentMessage =
               'Pagamento enviado.\n\n'
-              'Aguardando confirmação do Mercado Pago...';
+              'Aguardando confirmação '
+              'do Mercado Pago...';
         });
       } catch (_) {
         // Erro temporário de consulta.
@@ -398,14 +399,13 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget buildPaymentBrickState() {
     final orderId = waitingOrderId;
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 650),
-          child: Card(
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -426,25 +426,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     style: const TextStyle(fontSize: 16),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
                   if (!paymentBrickReady && !waitingPayment)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: CircularProgressIndicator(),
-                      ),
+                    const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Center(child: CircularProgressIndicator()),
                     ),
 
-                  const SizedBox(
-                    height: 500,
+                  // Área reservada para o Payment Brick.
+                  // O próprio elemento HTML agora
+                  // poderá receber a rolagem.
+                  SizedBox(
+                    width: double.infinity,
+                    height: 900,
                     child: HtmlElementView(viewType: paymentBrickViewType),
                   ),
 
-                  if (waitingPayment) ...[
-                    const SizedBox(height: 16),
-                    const Center(child: CircularProgressIndicator()),
-                  ],
+                  if (waitingPayment)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
 
                   const SizedBox(height: 20),
 
@@ -473,7 +476,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
