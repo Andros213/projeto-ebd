@@ -2,17 +2,49 @@
   let paymentBrickController = null;
   let mp = null;
 
+  function waitForContainer(containerId, timeout = 10000) {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+
+      function check() {
+        const container = document.getElementById(containerId);
+
+        if (container) {
+          resolve(container);
+          return;
+        }
+
+        if (Date.now() - start >= timeout) {
+          reject(
+            new Error(
+              "Container do Payment Brick não encontrado."
+            )
+          );
+          return;
+        }
+
+        setTimeout(check, 100);
+      }
+
+      check();
+    });
+  }
+
   window.MercadoPagoBridge = {
     initialize: function (publicKey) {
       if (!publicKey) {
         return Promise.reject(
-          new Error("Chave pública do Mercado Pago não informada.")
+          new Error(
+            "Chave pública do Mercado Pago não informada."
+          )
         );
       }
 
       if (typeof MercadoPago === "undefined") {
         return Promise.reject(
-          new Error("SDK do Mercado Pago não foi carregado.")
+          new Error(
+            "SDK do Mercado Pago não foi carregado."
+          )
         );
       }
 
@@ -41,8 +73,10 @@
         );
       }
 
-      const container =
-        document.getElementById(containerId);
+      // Aguarda o Flutter criar o elemento no DOM.
+      const container = await waitForContainer(
+        containerId
+      );
 
       if (!container) {
         throw new Error(
