@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../config/mercado_pago_config.dart';
 import '../services/cart_service.dart';
+import '../services/mercado_pago_web.dart';
 import '../services/order_service.dart';
 import '../services/payment_service.dart';
 
@@ -18,28 +20,149 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final CartService cartService = CartService();
-
   final OrderService orderService = OrderService();
-
   final PaymentService paymentService = PaymentService();
 
   late Future<Map<String, dynamic>> cart;
 
   bool processing = false;
-
+  bool paymentBrickReady = false;
   bool waitingPayment = false;
-
   bool paymentMonitoringFinished = false;
 
   int? waitingOrderId;
 
   String paymentMessage = 'Aguardando confirmação do pagamento...';
 
+  String? preferenceId;
+
   @override
   void initState() {
     super.initState();
 
+    registerPaymentBrickView();
+
     cart = cartService.getCart();
+  }
+
+  Future<void> initializePaymentBrick({
+    required double amount,
+    required String preferenceIdValue,
+  }) async {
+    try {
+      await initializeMercadoPago(MercadoPagoConfig.publicKey);
+
+      await renderPaymentBrick(
+        amount: amount,
+        preferenceId: preferenceIdValue,
+        onSubmit: processBrickPayment,
+        onReady: () {
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            paymentBrickReady = true;
+          });
+        },
+        onError: (error) {
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            paymentBrickReady = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro no formulário de pagamento: $error')),
+          );
+        },
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  Future<void> processBrickPayment(String formDataJson) async {
+    if (processing) {
+      return;
+    }
+
+    final orderId = waitingOrderId;
+
+    if (orderId == null) {
+      throw Exception('Pedido não encontrado.');
+    }
+
+    if (mounted) {
+      setState(() {
+        processing = true;
+        paymentMessage = 'Processando pagamento...';
+      });
+    }
+
+    try {
+      final decoded = jsonDecode(formDataJson);
+
+      if (decoded is! Map) {
+        throw Exception('Dados de pagamento inválidos.');
+      }
+
+      final paymentData = Map<String, dynamic>.from(decoded);
+
+      final result = await paymentService.processPayment(
+        orderId: orderId,
+        paymentData: paymentData,
+      );
+
+      final status = result['status']?.toString().toLowerCase();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        paymentMessage =
+            'Pagamento enviado ao Mercado Pago.\n\n'
+            'Aguardando confirmação...';
+      });
+
+      if (status == 'approved') {
+        await handleApprovedPayment(orderId);
+        return;
+      }
+
+      unawaited(monitorPayment(orderId));
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          paymentMessage = 'Não foi possível processar o pagamento.';
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', '')),
+          ),
+        );
+      }
+
+      rethrow;
+    } finally {
+      if (mounted) {
+        setState(() {
+          processing = false;
+        });
+      }
+    }
   }
 
   Future<void> confirmPurchase() async {
@@ -52,41 +175,34 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     });
 
     try {
-      // 1. Cria o pedido no backend.
+      // 1. Cria o pedido pendente.
       final order = await orderService.createOrder();
 
       final orderId = int.tryParse(order['id'].toString());
 
       if (orderId == null) {
-        throw Exception('ID do pedido não recebido');
+        throw Exception('ID do pedido não recebido.');
       }
 
       // 2. Cria a Preference do Mercado Pago.
+      // Ela será usada pelo Payment Brick.
       final preference = await paymentService.createPreference(
         orderId: orderId,
       );
 
-      final productionUrl = preference['initPoint']?.toString();
+      final preferenceValue = preference['id']?.toString();
 
-      final paymentUrl = productionUrl;
-
-      if (paymentUrl == null || paymentUrl.isEmpty) {
-        throw Exception('Link de pagamento não recebido');
+      if (preferenceValue == null || preferenceValue.isEmpty) {
+        throw Exception('ID da Preference não recebido.');
       }
 
-      final uri = Uri.tryParse(paymentUrl);
+      // 3. Recupera o total atual do carrinho.
+      final cartData = await cartService.getCart();
 
-      if (uri == null) {
-        throw Exception('Link de pagamento inválido');
-      }
+      final total = NumberUtils.toDouble(cartData['total']);
 
-      final launched = await launchUrl(
-        uri,
-        mode: LaunchMode.externalApplication,
-      );
-
-      if (!launched) {
-        throw Exception('Não foi possível abrir o Mercado Pago');
+      if (total <= 0) {
+        throw Exception('Valor do pedido inválido.');
       }
 
       if (!mounted) {
@@ -94,18 +210,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
 
       setState(() {
-        waitingPayment = true;
-        paymentMonitoringFinished = false;
         waitingOrderId = orderId;
+        preferenceId = preferenceValue;
+        paymentBrickReady = false;
+        paymentMonitoringFinished = false;
+        waitingPayment = false;
+
         paymentMessage =
             'Pedido #$orderId criado.\n\n'
-            'O Mercado Pago foi aberto em outra janela. '
-            'Estamos aguardando a confirmação do pagamento.';
+            'Escolha a forma de pagamento abaixo.';
       });
 
-      // 3. Começa a acompanhar automaticamente
-      // o status do pagamento.
-      unawaited(monitorPayment(orderId));
+      // Aguarda o Flutter colocar o HtmlElementView no DOM.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        initializePaymentBrick(
+          amount: total,
+          preferenceIdValue: preferenceValue,
+        );
+      });
     } catch (error) {
       if (!mounted) {
         return;
@@ -125,11 +251,50 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     }
   }
 
+  Future<void> handleApprovedPayment(int orderId) async {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      waitingPayment = false;
+      paymentMonitoringFinished = true;
+
+      paymentMessage =
+          'Pagamento aprovado!\n\n'
+          'Seu pedido foi confirmado.';
+    });
+
+    destroyPaymentBrick();
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => OrderDetailScreen(orderId: orderId)),
+    );
+  }
+
   Future<void> monitorPayment(int orderId) async {
     const int maxAttempts = 100;
 
+    if (waitingPayment) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        waitingPayment = true;
+        paymentMonitoringFinished = false;
+      });
+    }
+
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
-      if (!mounted || !waitingPayment || waitingOrderId != orderId) {
+      if (!mounted || waitingOrderId != orderId) {
         return;
       }
 
@@ -137,7 +302,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         await Future.delayed(const Duration(seconds: 3));
       }
 
-      if (!mounted || !waitingPayment || waitingOrderId != orderId) {
+      if (!mounted || waitingOrderId != orderId) {
         return;
       }
 
@@ -147,22 +312,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         final paymentStatus = order['payment_status']?.toString().toLowerCase();
 
         if (paymentStatus == 'approved') {
-          if (!mounted) {
-            return;
-          }
-
-          setState(() {
-            waitingPayment = false;
-            paymentMonitoringFinished = true;
-          });
-
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => OrderDetailScreen(orderId: orderId),
-            ),
-          );
-
+          await handleApprovedPayment(orderId);
           return;
         }
 
@@ -173,10 +323,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
           setState(() {
             paymentMonitoringFinished = true;
+            waitingPayment = false;
+
             paymentMessage =
                 'O pagamento do pedido #$orderId '
                 'foi recusado.\n\n'
-                'O pedido continua aguardando processamento.';
+                'Você pode tentar novamente.';
           });
 
           return;
@@ -189,6 +341,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
           setState(() {
             paymentMonitoringFinished = true;
+            waitingPayment = false;
+
             paymentMessage =
                 'O pagamento do pedido #$orderId '
                 'foi cancelado.';
@@ -203,21 +357,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
         setState(() {
           paymentMessage =
-              'Pedido #$orderId criado.\n\n'
+              'Pagamento enviado.\n\n'
               'Aguardando confirmação do Mercado Pago...';
         });
       } catch (_) {
-        // Mantém a tentativa de consulta.
-        // Um erro temporário da API não cancela o pedido.
+        // Erro temporário de consulta.
+        // Continua tentando.
       }
     }
 
-    if (!mounted || !waitingPayment || waitingOrderId != orderId) {
+    if (!mounted || waitingOrderId != orderId) {
       return;
     }
 
     setState(() {
       paymentMonitoringFinished = true;
+      waitingPayment = false;
+
       paymentMessage =
           'Ainda não recebemos a confirmação '
           'do pagamento do pedido #$orderId.\n\n'
@@ -239,30 +395,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  Widget buildPaymentWaitingState() {
+  Widget buildPaymentBrickState() {
     final orderId = waitingOrderId;
 
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
+          constraints: const BoxConstraints(maxWidth: 650),
           child: Card(
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (!paymentMonitoringFinished)
-                    const SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: CircularProgressIndicator(),
-                    )
-                  else
-                    const Icon(Icons.info_outline, size: 48),
-
-                  const SizedBox(height: 20),
-
                   Text(
                     orderId == null ? 'Pagamento' : 'Pedido #$orderId',
                     style: const TextStyle(
@@ -272,7 +418,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     textAlign: TextAlign.center,
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
                   Text(
                     paymentMessage,
@@ -282,8 +428,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                   const SizedBox(height: 24),
 
+                  if (!paymentBrickReady && !waitingPayment)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(),
+                      ),
+                    ),
+
+                  const SizedBox(
+                    height: 500,
+                    child: HtmlElementView(viewType: paymentBrickViewType),
+                  ),
+
+                  if (waitingPayment) ...[
+                    const SizedBox(height: 16),
+                    const Center(child: CircularProgressIndicator()),
+                  ],
+
+                  const SizedBox(height: 20),
+
                   SizedBox(
-                    width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
                       onPressed: openOrderDetails,
@@ -294,10 +459,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   const SizedBox(height: 10),
 
                   SizedBox(
-                    width: double.infinity,
                     height: 48,
                     child: OutlinedButton(
                       onPressed: () {
+                        destroyPaymentBrick();
+
                         Navigator.pop(context);
                       },
                       child: const Text('Voltar ao carrinho'),
@@ -313,11 +479,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   @override
+  void dispose() {
+    destroyPaymentBrick();
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final hasPayment = waitingOrderId != null && preferenceId != null;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Checkout')),
-      body: waitingPayment
-          ? buildPaymentWaitingState()
+      body: hasPayment
+          ? buildPaymentBrickState()
           : FutureBuilder<Map<String, dynamic>>(
               future: cart,
               builder: (context, snapshot) {
@@ -373,14 +548,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
+
                                   const SizedBox(height: 8),
-                                  Text('Quantidade: $quantity'),
+
+                                  Text(
+                                    'Quantidade: '
+                                    '$quantity',
+                                  ),
+
                                   const SizedBox(height: 4),
+
                                   Text(
                                     'Preco unitario: '
                                     'R\$ ${price.toStringAsFixed(2)}',
                                   ),
+
                                   const SizedBox(height: 4),
+
                                   Text(
                                     'Subtotal: '
                                     'R\$ ${subtotal.toStringAsFixed(2)}',
@@ -395,6 +579,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         },
                       ),
                     ),
+
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -415,6 +600,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
+
                               Text(
                                 'R\$ ${total.toStringAsFixed(2)}',
                                 style: const TextStyle(
@@ -424,7 +610,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               ),
                             ],
                           ),
+
                           const SizedBox(height: 20),
+
                           SizedBox(
                             height: 50,
                             child: ElevatedButton(
@@ -435,7 +623,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                       height: 24,
                                       child: CircularProgressIndicator(),
                                     )
-                                  : const Text('Pagar Agora'),
+                                  : const Text('Continuar para pagamento'),
                             ),
                           ),
                         ],
