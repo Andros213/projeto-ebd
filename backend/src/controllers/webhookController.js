@@ -316,48 +316,21 @@ async function handlePaymentWebhook(req, res) {
             payment.status === 'approved'
         ) {
 
-            // --------------------------------------------------
-            // O PEDIDO SÓ AVANÇA AUTOMATICAMENTE SE AINDA
-            // ESTIVER PENDENTE.
-            // --------------------------------------------------
-
-            if (
-                order.status === 'pending'
-            ) {
-
-                const confirmedOrder =
-                    await orderRepository
-                        .updateOrderStatus(
-                            orderId,
-                            'confirmed'
-                        );
-
-
-                console.log(
-                    'Pedido confirmado automaticamente após pagamento aprovado:',
-                    {
-                        orderId,
-
-                        status:
-                            confirmedOrder?.status
-
-                    }
+            const confirmedOrder =
+                await orderRepository.confirmPaidOrder(
+                    orderId
                 );
 
-            } else {
 
-                console.log(
-                    'Pagamento aprovado, mas o pedido já estava em outro status operacional:',
-                    {
-                        orderId,
+            console.log(
+                'Pagamento aprovado. Pedido confirmado, estoque atualizado e carrinho atualizado:',
+                {
+                    orderId,
 
-                        orderStatus:
-                            order.status
-
-                    }
-                );
-
-            }
+                    status:
+                        confirmedOrder?.status
+                }
+            );
 
         }
 
