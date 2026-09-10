@@ -66,14 +66,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         orderId: orderId,
       );
 
-      final sandboxUrl = preference['sandboxInitPoint']?.toString();
-
       final productionUrl = preference['initPoint']?.toString();
 
-      // Durante os testes, usamos o sandbox.
-      final paymentUrl = sandboxUrl != null && sandboxUrl.isNotEmpty
-          ? sandboxUrl
-          : productionUrl;
+      final paymentUrl = productionUrl;
 
       if (paymentUrl == null || paymentUrl.isEmpty) {
         throw Exception('Link de pagamento não recebido');
