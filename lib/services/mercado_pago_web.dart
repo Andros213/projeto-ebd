@@ -51,13 +51,13 @@ Future<void> initializeMercadoPago(String publicKey) async {
 Future<void> renderPaymentBrick({
   required double amount,
   required String preferenceId,
-  required void Function(String formDataJson) onSubmit,
+  required Future<void> Function(String formDataJson) onSubmit,
   required void Function() onReady,
   required void Function(String error) onError,
 }) async {
-  final submitCallback = (JSString formDataJson) {
-    onSubmit(formDataJson.toDart);
-  }.toJS;
+  final submitCallback = ((JSString formDataJson) {
+    return onSubmit(formDataJson.toDart).toJS;
+  }).toJS;
 
   final readyCallback = () {
     onReady();

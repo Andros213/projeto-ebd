@@ -73,7 +73,6 @@
         );
       }
 
-      // Aguarda o Flutter criar o elemento no DOM.
       const container = await waitForContainer(
         containerId
       );
@@ -118,26 +117,59 @@
             }
           },
 
-          onSubmit: async function ({
+          onSubmit: function ({
             selectedPaymentMethod,
             formData,
           }) {
-            try {
-              if (typeof onSubmit !== "function") {
-                throw new Error(
-                  "Callback de pagamento não configurado."
-                );
-              }
-
-              await onSubmit(
-                JSON.stringify(formData)
+            if (typeof onSubmit !== "function") {
+              const error = new Error(
+                "Callback de pagamento não configurado."
               );
-            } catch (error) {
+
               if (typeof onError === "function") {
                 onError(error);
               }
 
-              throw error;
+              return Promise.reject(error);
+            }
+
+            try {
+              console.log(
+                "Payment Brick enviando pagamento:",
+                selectedPaymentMethod
+              );
+
+              const result = onSubmit(
+                JSON.stringify(formData)
+              );
+
+              // Garante que o Payment Brick sempre receba
+              // uma Promise como retorno do onSubmit.
+              return Promise.resolve(result).catch(
+                function (error) {
+                  console.error(
+                    "Erro ao processar pagamento:",
+                    error
+                  );
+
+                  if (typeof onError === "function") {
+                    onError(error);
+                  }
+
+                  throw error;
+                }
+              );
+            } catch (error) {
+              console.error(
+                "Erro ao iniciar processamento:",
+                error
+              );
+
+              if (typeof onError === "function") {
+                onError(error);
+              }
+
+              return Promise.reject(error);
             }
           },
 
