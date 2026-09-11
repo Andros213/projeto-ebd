@@ -97536,7 +97536,7 @@ case 7:i=a4
 h=d.b(J.Z(i,"payment"))?A.bQ(J.Z(i,"payment"),c,b):A.B(c,b)
 a=J.Z(h,"status")
 g=a==null?null:J.L(a).toLowerCase()
-f=d.b(J.Z(h,"pix"))?A.bQ(J.Z(h,"pix"),c,b):null
+f=d.b(J.Z(i,"pix"))?A.bQ(J.Z(i,"pix"),c,b):null
 if(m.c!=null)m.L(new A.asV(m,f))
 s=J.c(g,"approved")?8:9
 break
@@ -97731,7 +97731,7 @@ o.push(B.aX)
 o.push(A.bD(A.cU(B.a1I,s.gayE()),48,r))
 o.push(B.aP)
 o.push(A.bD(A.Pr(B.a2p,new A.asA(s)),48,r))
-return A.bW(A.ig(new A.dc(B.Et,A.bZ(new A.ah(B.as,A.aS(o,B.cg,B.j,B.l),r),r,r,r,r,r),r),B.as,r),r,r)},
+return A.ig(A.bW(new A.dc(B.Et,A.bZ(new A.ah(B.as,A.aS(o,B.cg,B.j,B.l),r),r,r,r,r,r),r),r,r),B.as,r)},
 l(){v.G.MercadoPagoBridge.destroyPaymentBrick()
 this.aB()},
 G(a){var s,r=this,q=null,p=r.Q!=null&&r.at!=null,o=A.et(q,q,B.a3v)

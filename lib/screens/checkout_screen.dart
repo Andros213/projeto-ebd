@@ -135,8 +135,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       final status = payment['status']?.toString().toLowerCase();
 
-      final pix = payment['pix'] is Map
-          ? Map<String, dynamic>.from(payment['pix'])
+      // O backend retorna "pix" no nível principal da resposta,
+      // e não dentro de "payment".
+      final pix = result['pix'] is Map
+          ? Map<String, dynamic>.from(result['pix'])
           : null;
 
       if (mounted) {
@@ -200,7 +202,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
 
       // 2. Cria a Preference do Mercado Pago.
-      // Ela será usada pelo Payment Brick.
       final preference = await paymentService.createPreference(
         orderId: orderId,
       );
@@ -528,9 +529,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget buildPaymentBrickState() {
     final orderId = waitingOrderId;
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 650),
           child: Card(
@@ -566,6 +567,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       ),
                     ),
 
+                  // Mantemos os 900px para o Payment Brick.
                   const SizedBox(
                     height: 900,
                     child: HtmlElementView(viewType: paymentBrickViewType),
@@ -575,6 +577,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                   if (waitingPayment) ...[
                     const SizedBox(height: 16),
+
                     const Center(child: CircularProgressIndicator()),
                   ],
 
