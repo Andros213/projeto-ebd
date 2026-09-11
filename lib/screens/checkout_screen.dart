@@ -137,8 +137,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
       // O backend retorna "pix" no nível principal da resposta,
       // e não dentro de "payment".
-      final pix = result['pix'] is Map
-          ? Map<String, dynamic>.from(result['pix'])
+      final pix = payment['pix'] is Map
+          ? Map<String, dynamic>.from(payment['pix'])
           : null;
 
       if (mounted) {

@@ -97536,7 +97536,7 @@ case 7:i=a4
 h=d.b(J.Z(i,"payment"))?A.bQ(J.Z(i,"payment"),c,b):A.B(c,b)
 a=J.Z(h,"status")
 g=a==null?null:J.L(a).toLowerCase()
-f=d.b(J.Z(i,"pix"))?A.bQ(J.Z(i,"pix"),c,b):null
+f=d.b(J.Z(h,"pix"))?A.bQ(J.Z(h,"pix"),c,b):null
 if(m.c!=null)m.L(new A.asV(m,f))
 s=J.c(g,"approved")?8:9
 break
