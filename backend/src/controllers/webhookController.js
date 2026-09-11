@@ -302,6 +302,15 @@ async function handlePaymentWebhook(req, res) {
                 status:
                     payment.status,
 
+                statusDetail:
+                    payment.status_detail,
+
+                paymentMethodId:
+                    payment.payment_method_id,
+
+                paymentTypeId:
+                    payment.payment_type_id,
+
                 paymentRecordId:
                     savedPayment.id
             }
@@ -346,7 +355,10 @@ async function handlePaymentWebhook(req, res) {
             console.log(
                 'Pagamento pendente. Pedido permanece pendente:',
                 {
-                    orderId
+                    orderId,
+
+                    statusDetail:
+                        payment.status_detail
                 }
             );
 
@@ -362,9 +374,24 @@ async function handlePaymentWebhook(req, res) {
         ) {
 
             console.log(
-                'Pagamento recusado. Pedido permanece pendente:',
+                'Pagamento recusado. Detalhes do Mercado Pago:',
                 {
-                    orderId
+                    orderId,
+
+                    paymentId:
+                        payment.id,
+
+                    status:
+                        payment.status,
+
+                    statusDetail:
+                        payment.status_detail,
+
+                    paymentMethodId:
+                        payment.payment_method_id,
+
+                    paymentTypeId:
+                        payment.payment_type_id
                 }
             );
 
@@ -382,7 +409,10 @@ async function handlePaymentWebhook(req, res) {
             console.log(
                 'Pagamento cancelado:',
                 {
-                    orderId
+                    orderId,
+
+                    statusDetail:
+                        payment.status_detail
                 }
             );
 
