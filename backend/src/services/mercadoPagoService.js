@@ -361,6 +361,26 @@ async function createPayment({
 
 
     // --------------------------------------------------
+    // WEBHOOK
+    // --------------------------------------------------
+
+    const webhookUrl =
+        process.env.MERCADO_PAGO_WEBHOOK_URL;
+
+    if (!webhookUrl) {
+        throw new Error(
+            'MERCADO_PAGO_WEBHOOK_URL não configurado'
+        );
+    }
+
+
+    console.log(
+        'Webhook configurado para o pagamento:',
+        webhookUrl
+    );
+
+
+    // --------------------------------------------------
     // DADOS BÁSICOS DO PAGAMENTO
     // --------------------------------------------------
 
@@ -383,7 +403,10 @@ async function createPayment({
         external_reference:
             String(
                 order.id
-            )
+            ),
+
+        notification_url:
+            webhookUrl
 
     };
 
@@ -503,7 +526,10 @@ async function createPayment({
             paymentMethodId,
 
             hasToken:
-                Boolean(body.token)
+                Boolean(body.token),
+
+            hasNotificationUrl:
+                Boolean(body.notification_url)
         }
     );
 
