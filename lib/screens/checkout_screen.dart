@@ -567,7 +567,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ),
 
                   const SizedBox(
-                    height: 500,
+                    height: 900,
                     child: HtmlElementView(viewType: paymentBrickViewType),
                   ),
 
