@@ -134,7 +134,6 @@ async function createPreference(order) {
         );
     }
 
-
     console.log(
         'Webhook configurado para a Preference:',
         webhookUrl
@@ -227,7 +226,8 @@ async function createPayment({
         installments,
         payment_method_id,
         issuer_id,
-        payer
+        payer,
+        device_session_id
     } = paymentData;
 
 
@@ -280,7 +280,6 @@ async function createPayment({
             'Valor do pagamento inválido'
         );
     }
-
 
     const orderTotal =
         Number(order.total);
@@ -373,11 +372,20 @@ async function createPayment({
         );
     }
 
-
     console.log(
         'Webhook configurado para o pagamento:',
         webhookUrl
     );
+
+
+    // --------------------------------------------------
+    // DEVICE ID
+    // --------------------------------------------------
+
+    const deviceSessionId =
+        device_session_id
+            ? String(device_session_id).trim()
+            : null;
 
 
     // --------------------------------------------------
@@ -529,9 +537,38 @@ async function createPayment({
                 Boolean(body.token),
 
             hasNotificationUrl:
-                Boolean(body.notification_url)
+                Boolean(body.notification_url),
+
+            hasDeviceSessionId:
+                Boolean(deviceSessionId)
         }
     );
+
+
+    // --------------------------------------------------
+    // OPÇÕES DA REQUISIÇÃO
+    // --------------------------------------------------
+
+    const requestOptions = {
+
+        idempotencyKey
+
+    };
+
+
+    // --------------------------------------------------
+    // DEVICE ID
+    //
+    // O SDK Mercado Pago 3.5.1 envia este valor através
+    // do header X-Meli-Session-Id.
+    // --------------------------------------------------
+
+    if (deviceSessionId) {
+
+        requestOptions.meliSessionId =
+            deviceSessionId;
+
+    }
 
 
     // --------------------------------------------------
@@ -543,11 +580,7 @@ async function createPayment({
 
             body,
 
-            requestOptions: {
-
-                idempotencyKey
-
-            }
+            requestOptions
 
         });
 
@@ -571,9 +604,11 @@ async function getPayment(paymentId) {
         paymentId === undefined ||
         String(paymentId).trim().length === 0
     ) {
+
         throw new Error(
             'ID do pagamento não informado'
         );
+
     }
 
     const client =

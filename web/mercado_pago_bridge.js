@@ -28,6 +28,23 @@
     });
   }
 
+  // ======================================================
+  // DEVICE ID DO MERCADO PAGO
+  // ======================================================
+
+  function getDeviceSessionId() {
+    try {
+      if (
+        typeof window.MP_DEVICE_SESSION_ID === "string" &&
+        window.MP_DEVICE_SESSION_ID.trim().length > 0
+      ) {
+        return window.MP_DEVICE_SESSION_ID.trim();
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
   window.MercadoPagoBridge = {
     initialize: function (publicKey) {
       if (!publicKey) {
@@ -45,6 +62,7 @@
       try {
         mp = new MercadoPago(publicKey, {
           locale: "pt-BR",
+          advancedFraudPrevention: true,
         });
 
         return Promise.resolve(true);
@@ -134,12 +152,58 @@
               return Promise.resolve();
             }
 
-            let callbackResult;
-
             try {
-              callbackResult = onSubmit(
-                JSON.stringify(formData)
-              );
+              // --------------------------------------------------
+              // ADICIONAR DEVICE ID AOS DADOS ENVIADOS AO FLUTTER
+              // --------------------------------------------------
+
+              const deviceSessionId =
+                getDeviceSessionId();
+
+              const paymentData = {
+                ...formData,
+              };
+
+              if (deviceSessionId) {
+                paymentData.device_session_id =
+                  deviceSessionId;
+
+                console.log(
+                  "Device ID do Mercado Pago disponível:",
+                  true
+                );
+              } else {
+                console.warn(
+                  "Device ID do Mercado Pago não disponível."
+                );
+              }
+
+              const callbackResult =
+                onSubmit(
+                  JSON.stringify(paymentData)
+                );
+
+              return Promise.resolve(callbackResult)
+                .then(function (result) {
+                  console.log(
+                    "Flutter finalizou o processamento do pagamento."
+                  );
+
+                  return result;
+                })
+                .catch(function (error) {
+                  console.error(
+                    "Erro retornado pelo Flutter:",
+                    error
+                  );
+
+                  if (typeof onError === "function") {
+                    onError(error);
+                  }
+
+                  return null;
+                });
+
             } catch (error) {
               console.error(
                 "Erro síncrono ao chamar Flutter:",
@@ -150,34 +214,8 @@
                 onError(error);
               }
 
-              // Importante:
-              // resolvemos a Promise para liberar o spinner
-              // do Payment Brick.
               return Promise.resolve();
             }
-
-            return Promise.resolve(callbackResult)
-              .then(function (result) {
-                console.log(
-                  "Flutter finalizou o processamento do pagamento."
-                );
-
-                return result;
-              })
-              .catch(function (error) {
-                console.error(
-                  "Erro retornado pelo Flutter:",
-                  error
-                );
-
-                if (typeof onError === "function") {
-                  onError(error);
-                }
-
-                // Não deixar o Payment Brick preso
-                // indefinidamente no loading.
-                return null;
-              });
           },
 
           onError: function (error) {
