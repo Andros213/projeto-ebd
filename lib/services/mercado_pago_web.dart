@@ -56,7 +56,13 @@ Future<void> renderPaymentBrick({
   required void Function(String error) onError,
 }) async {
   final submitCallback = ((JSString formDataJson) {
-    return onSubmit(formDataJson.toDart).toJS;
+    final future = onSubmit(formDataJson.toDart);
+
+    future.catchError((error) {
+      onError(error.toString());
+    });
+
+    return null;
   }).toJS;
 
   final readyCallback = () {
