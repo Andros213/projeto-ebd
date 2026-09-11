@@ -330,7 +330,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
         final paymentStatus = order['payment_status']?.toString().toLowerCase();
 
-        if (paymentStatus == 'approved') {
+        // O webhook confirma o pedido como "confirmed".
+        // Mantemos também a verificação de "approved"
+        // para preservar o fluxo anterior.
+        final orderStatus = order['status']?.toString().toLowerCase();
+
+        if (paymentStatus == 'approved' || orderStatus == 'confirmed') {
           await handleApprovedPayment(orderId);
           return;
         }
