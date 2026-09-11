@@ -218,7 +218,7 @@ async function createPayment({
 
 
     // --------------------------------------------------
-    // VALIDAR DADOS RECEBIDOS DO BRICK
+    // DADOS RECEBIDOS DO PAYMENT BRICK
     // --------------------------------------------------
 
     const {
@@ -231,11 +231,9 @@ async function createPayment({
     } = paymentData;
 
 
-    if (!token) {
-        throw new Error(
-            'Token do pagamento não informado'
-        );
-    }
+    // --------------------------------------------------
+    // MÉTODO DE PAGAMENTO
+    // --------------------------------------------------
 
     if (
         !payment_method_id ||
@@ -245,6 +243,16 @@ async function createPayment({
             'Método de pagamento não informado'
         );
     }
+
+    const paymentMethodId =
+        String(payment_method_id)
+            .trim()
+            .toLowerCase();
+
+
+    // --------------------------------------------------
+    // PAGADOR
+    // --------------------------------------------------
 
     if (
         !payer ||
@@ -256,6 +264,10 @@ async function createPayment({
         );
     }
 
+
+    // --------------------------------------------------
+    // VALOR
+    // --------------------------------------------------
 
     const amount =
         Number(transaction_amount);
@@ -308,7 +320,48 @@ async function createPayment({
 
 
     // --------------------------------------------------
-    // DADOS DO PAGAMENTO
+    // PAGADOR
+    // --------------------------------------------------
+
+    const payerBody = {
+
+        email:
+            String(
+                payer.email
+            ).trim()
+
+    };
+
+
+    // --------------------------------------------------
+    // IDENTIFICAÇÃO DO PAGADOR
+    // --------------------------------------------------
+
+    if (
+        payer.identification &&
+        payer.identification.type &&
+        payer.identification.number
+    ) {
+
+        payerBody.identification = {
+
+            type:
+                String(
+                    payer.identification.type
+                ),
+
+            number:
+                String(
+                    payer.identification.number
+                )
+
+        };
+
+    }
+
+
+    // --------------------------------------------------
+    // DADOS BÁSICOS DO PAGAMENTO
     // --------------------------------------------------
 
     const body = {
@@ -318,45 +371,70 @@ async function createPayment({
                 amount.toFixed(2)
             ),
 
-        token:
-
-            String(
-                token
-            ),
-
         description:
-
             `Pedido EBD #${order.id}`,
 
-        installments:
-
-            Number(
-                installments || 1
-            ),
-
         payment_method_id:
+            paymentMethodId,
 
-            String(
-                payment_method_id
-            ),
-
-        payer: {
-
-            email:
-
-                String(
-                    payer.email
-                )
-
-        },
+        payer:
+            payerBody,
 
         external_reference:
-
             String(
                 order.id
             )
 
     };
+
+
+    // --------------------------------------------------
+    // TOKEN
+    //
+    // Necessário para cartão.
+    // Não é enviado para Pix/Boleto.
+    // --------------------------------------------------
+
+    if (
+        token &&
+        String(token).trim().length > 0
+    ) {
+
+        body.token =
+            String(
+                token
+            );
+
+    }
+
+
+    // --------------------------------------------------
+    // PARCELAS
+    //
+    // Usadas quando o Brick enviar esse campo.
+    // Pix não precisa de parcelas.
+    // --------------------------------------------------
+
+    if (
+        installments !== undefined &&
+        installments !== null &&
+        String(installments).trim().length > 0
+    ) {
+
+        const installmentsNumber =
+            Number(installments);
+
+        if (
+            Number.isInteger(installmentsNumber) &&
+            installmentsNumber > 0
+        ) {
+
+            body.installments =
+                installmentsNumber;
+
+        }
+
+    }
 
 
     // --------------------------------------------------
@@ -369,27 +447,70 @@ async function createPayment({
         String(issuer_id).trim().length > 0
     ) {
 
-        body.issuer_id =
-            Number(
-                issuer_id
-            );
+        const issuerNumber =
+            Number(issuer_id);
+
+        if (
+            Number.isFinite(issuerNumber)
+        ) {
+
+            body.issuer_id =
+                issuerNumber;
+
+        }
 
     }
 
 
     // --------------------------------------------------
-    // CRIAR PAGAMENTO
+    // VALIDAÇÃO ESPECÍFICA PARA CARTÃO
+    // --------------------------------------------------
+
+    const isCardPayment =
+        paymentMethodId.includes('visa') ||
+        paymentMethodId.includes('master') ||
+        paymentMethodId.includes('elo') ||
+        paymentMethodId.includes('hipercard') ||
+        paymentMethodId.includes('amex') ||
+        paymentMethodId.includes('diners') ||
+        paymentMethodId.includes('card');
+
+
+    if (
+        isCardPayment &&
+        !body.token
+    ) {
+
+        throw new Error(
+            'Token do cartão não informado'
+        );
+
+    }
+
+
+    // --------------------------------------------------
+    // LOG
     // --------------------------------------------------
 
     console.log(
         'Criando pagamento pelo Payment Brick:',
         {
-            orderId: order.id,
+            orderId:
+                order.id,
+
             amount,
-            paymentMethodId: payment_method_id
+
+            paymentMethodId,
+
+            hasToken:
+                Boolean(body.token)
         }
     );
 
+
+    // --------------------------------------------------
+    // CRIAR PAGAMENTO
+    // --------------------------------------------------
 
     const result =
         await payment.create({
