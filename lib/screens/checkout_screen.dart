@@ -124,7 +124,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         paymentData: paymentData,
       );
 
-      final status = result['status']?.toString().toLowerCase();
+      final status = result['payment']?['status']?.toString().toLowerCase();
 
       if (!mounted) {
         return;

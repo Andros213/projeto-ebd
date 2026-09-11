@@ -97179,8 +97179,8 @@ case 6:case 1:return A.o(q,r)
 case 2:return A.n(o.at(-1),r)}})
 return A.p($async$xo,r)},
 y6(a){return this.ayP(a)},
-ayP(a){var s=0,r=A.q(t.H),q,p=2,o=[],n=[],m=this,l,k,j,i,h,g,f,e,d
-var $async$y6=A.m(function(b,c){if(b===1){o.push(c)
+ayP(a){var s=0,r=A.q(t.H),q,p=2,o=[],n=[],m=this,l,k,j,i,h,g,f,e,d,c
+var $async$y6=A.m(function(b,a0){if(b===1){o.push(a0)
 s=p}for(;;)switch(s){case 0:if(m.w){s=1
 break}l=m.Q
 if(l==null)throw A.f(A.a2("Pedido n\xe3o encontrado."))
@@ -97191,9 +97191,11 @@ if(!t.f.b(k)){f=A.a2("Dados de pagamento inv\xe1lidos.")
 throw A.f(f)}j=A.bV(k,t.N,t.z)
 s=7
 return A.j(m.f.y7(l,j),$async$y6)
-case 7:i=c
-f=J.Z(i,"status")
-h=f==null?null:J.M(f).toLowerCase()
+case 7:i=a0
+f=J.Z(i,"payment")
+if(f==null)e=null
+else{f=J.Z(f,"status")
+e=f==null?null:J.M(f).toLowerCase()}h=e
 if(m.c==null){n=[1]
 s=5
 break}m.L(new A.asK(m))
@@ -97209,10 +97211,10 @@ n.push(6)
 s=5
 break
 case 4:p=3
-d=o.pop()
-g=A.a4(d)
+c=o.pop()
+g=A.a4(c)
 if(m.c!=null){m.L(new A.asL(m))
-m.c.T(t.q).f.bw(A.cf(null,null,null,null,null,B.m,null,A.E(B.c.d9(J.M(g),"Exception: ",""),null,null,null,null,null,null),null,B.G,null,null,null,null,null,null,null,null,null,null))}throw d
+m.c.T(t.q).f.bw(A.cf(null,null,null,null,null,B.m,null,A.E(B.c.d9(J.M(g),"Exception: ",""),null,null,null,null,null,null),null,B.G,null,null,null,null,null,null,null,null,null,null))}throw c
 n.push(6)
 s=5
 break
