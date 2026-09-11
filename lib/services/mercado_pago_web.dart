@@ -34,7 +34,9 @@ void registerPaymentBrickView() {
     final element = web.HTMLDivElement()
       ..id = 'paymentBrickContainer'
       ..style.width = '100%'
-      ..style.minHeight = '500px';
+      ..style.height = '900px'
+      ..style.minHeight = '900px'
+      ..style.overflowY = 'auto';
 
     return element;
   });

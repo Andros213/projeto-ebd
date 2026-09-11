@@ -99170,7 +99170,9 @@ A.aEJ.prototype={
 $1(a){var s=v.G.document.createElement("div")
 s.id="paymentBrickContainer"
 s.style.width="100%"
-s.style.minHeight="500px"
+s.style.height="900px"
+s.style.minHeight="900px"
+s.style.overflowY="auto"
 return s},
 $S:199}
 A.aEL.prototype={
