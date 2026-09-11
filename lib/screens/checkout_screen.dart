@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../config/mercado_pago_config.dart';
 import '../services/cart_service.dart';
@@ -35,6 +36,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String paymentMessage = 'Aguardando confirmação do pagamento...';
 
   String? preferenceId;
+
+  String? pixQrCode;
+  String? pixQrCodeBase64;
+  String? pixTicketUrl;
 
   @override
   void initState() {
@@ -124,17 +129,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         paymentData: paymentData,
       );
 
-      final status = result['payment']?['status']?.toString().toLowerCase();
+      final payment = result['payment'] is Map
+          ? Map<String, dynamic>.from(result['payment'])
+          : <String, dynamic>{};
 
-      if (!mounted) {
-        return;
+      final status = payment['status']?.toString().toLowerCase();
+
+      final pix = payment['pix'] is Map
+          ? Map<String, dynamic>.from(payment['pix'])
+          : null;
+
+      if (mounted) {
+        setState(() {
+          pixQrCode = pix?['qr_code']?.toString();
+          pixQrCodeBase64 = pix?['qr_code_base64']?.toString();
+          pixTicketUrl = pix?['ticket_url']?.toString();
+
+          paymentMessage =
+              'Pagamento enviado ao Mercado Pago.\n\n'
+              'Aguardando confirmação...';
+        });
       }
-
-      setState(() {
-        paymentMessage =
-            'Pagamento enviado ao Mercado Pago.\n\n'
-            'Aguardando confirmação...';
-      });
 
       if (status == 'approved') {
         await handleApprovedPayment(orderId);
@@ -185,6 +200,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
 
       // 2. Cria a Preference do Mercado Pago.
+      // Ela será usada pelo Payment Brick.
       final preference = await paymentService.createPreference(
         orderId: orderId,
       );
@@ -214,6 +230,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         paymentBrickReady = false;
         paymentMonitoringFinished = false;
         waitingPayment = false;
+
+        pixQrCode = null;
+        pixQrCodeBase64 = null;
+        pixTicketUrl = null;
 
         paymentMessage =
             'Pedido #$orderId criado.\n\n'
@@ -312,7 +332,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
         if (paymentStatus == 'approved') {
           await handleApprovedPayment(orderId);
-
           return;
         }
 
@@ -358,8 +377,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         setState(() {
           paymentMessage =
               'Pagamento enviado.\n\n'
-              'Aguardando confirmação '
-              'do Mercado Pago...';
+              'Aguardando confirmação do Mercado Pago...';
         });
       } catch (_) {
         // Erro temporário de consulta.
@@ -396,16 +414,128 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  Future<void> copyPixCode() async {
+    final code = pixQrCode;
+
+    if (code == null || code.isEmpty) {
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: code));
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Código Pix copiado.')));
+  }
+
+  Widget buildPixData() {
+    final hasBase64 = pixQrCodeBase64 != null && pixQrCodeBase64!.isNotEmpty;
+
+    final hasQrCode = pixQrCode != null && pixQrCode!.isNotEmpty;
+
+    if (!hasBase64 && !hasQrCode) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(top: 20),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Pagamento via Pix',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 16),
+
+            if (hasBase64)
+              Builder(
+                builder: (context) {
+                  try {
+                    final imageBytes = base64Decode(pixQrCodeBase64!);
+
+                    return Center(
+                      child: Image.memory(
+                        imageBytes,
+                        width: 260,
+                        height: 260,
+                        fit: BoxFit.contain,
+                      ),
+                    );
+                  } catch (_) {
+                    return const SizedBox.shrink();
+                  }
+                },
+              ),
+
+            if (hasQrCode) ...[
+              const SizedBox(height: 16),
+
+              const Text(
+                'Código Pix copia e cola:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 8),
+
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(
+                  pixQrCode!,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: copyPixCode,
+                  icon: const Icon(Icons.copy),
+                  label: const Text('Copiar código Pix'),
+                ),
+              ),
+            ],
+
+            if (pixTicketUrl != null && pixTicketUrl!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+
+              SelectableText(
+                pixTicketUrl!,
+                style: const TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget buildPaymentBrickState() {
     final orderId = waitingOrderId;
 
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 650),
+          child: Card(
             child: Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -426,28 +556,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     style: const TextStyle(fontSize: 16),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
                   if (!paymentBrickReady && !waitingPayment)
-                    const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Center(child: CircularProgressIndicator()),
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(),
+                      ),
                     ),
 
-                  // Área reservada para o Payment Brick.
-                  // O próprio elemento HTML agora
-                  // poderá receber a rolagem.
-                  SizedBox(
-                    width: double.infinity,
-                    height: 900,
+                  const SizedBox(
+                    height: 500,
                     child: HtmlElementView(viewType: paymentBrickViewType),
                   ),
 
-                  if (waitingPayment)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16),
-                      child: Center(child: CircularProgressIndicator()),
-                    ),
+                  buildPixData(),
+
+                  if (waitingPayment) ...[
+                    const SizedBox(height: 16),
+                    const Center(child: CircularProgressIndicator()),
+                  ],
 
                   const SizedBox(height: 20),
 
@@ -476,7 +605,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -563,14 +692,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                                   Text(
                                     'Preco unitario: '
-                                    'R\$ ${price.toStringAsFixed(2)}',
+                                    'R\$ '
+                                    '${price.toStringAsFixed(2)}',
                                   ),
 
                                   const SizedBox(height: 4),
 
                                   Text(
                                     'Subtotal: '
-                                    'R\$ ${subtotal.toStringAsFixed(2)}',
+                                    'R\$ '
+                                    '${subtotal.toStringAsFixed(2)}',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -605,7 +736,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                               ),
 
                               Text(
-                                'R\$ ${total.toStringAsFixed(2)}',
+                                'R\$ '
+                                '${total.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,

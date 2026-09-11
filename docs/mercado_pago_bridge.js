@@ -16,9 +16,7 @@
 
         if (Date.now() - start >= timeout) {
           reject(
-            new Error(
-              "Container do Payment Brick não encontrado."
-            )
+            new Error("Container do Payment Brick não encontrado.")
           );
           return;
         }
@@ -34,17 +32,13 @@
     initialize: function (publicKey) {
       if (!publicKey) {
         return Promise.reject(
-          new Error(
-            "Chave pública do Mercado Pago não informada."
-          )
+          new Error("Chave pública do Mercado Pago não informada.")
         );
       }
 
       if (typeof MercadoPago === "undefined") {
         return Promise.reject(
-          new Error(
-            "SDK do Mercado Pago não foi carregado."
-          )
+          new Error("SDK do Mercado Pago não foi carregado.")
         );
       }
 
@@ -73,9 +67,7 @@
         );
       }
 
-      const container = await waitForContainer(
-        containerId
-      );
+      const container = await waitForContainer(containerId);
 
       if (!container) {
         throw new Error(
@@ -112,6 +104,10 @@
 
         callbacks: {
           onReady: function () {
+            console.log(
+              "Payment Brick pronto."
+            );
+
             if (typeof onReady === "function") {
               onReady();
             }
@@ -121,6 +117,11 @@
             selectedPaymentMethod,
             formData,
           }) {
+            console.log(
+              "Payment Brick enviando pagamento:",
+              selectedPaymentMethod
+            );
+
             if (typeof onSubmit !== "function") {
               const error = new Error(
                 "Callback de pagamento não configurado."
@@ -130,38 +131,18 @@
                 onError(error);
               }
 
-              return Promise.reject(error);
+              return Promise.resolve();
             }
 
+            let callbackResult;
+
             try {
-              console.log(
-                "Payment Brick enviando pagamento:",
-                selectedPaymentMethod
-              );
-
-              const result = onSubmit(
+              callbackResult = onSubmit(
                 JSON.stringify(formData)
-              );
-
-              // Garante que o Payment Brick sempre receba
-              // uma Promise como retorno do onSubmit.
-              return Promise.resolve(result).catch(
-                function (error) {
-                  console.error(
-                    "Erro ao processar pagamento:",
-                    error
-                  );
-
-                  if (typeof onError === "function") {
-                    onError(error);
-                  }
-
-                  throw error;
-                }
               );
             } catch (error) {
               console.error(
-                "Erro ao iniciar processamento:",
+                "Erro síncrono ao chamar Flutter:",
                 error
               );
 
@@ -169,8 +150,34 @@
                 onError(error);
               }
 
-              return Promise.reject(error);
+              // Importante:
+              // resolvemos a Promise para liberar o spinner
+              // do Payment Brick.
+              return Promise.resolve();
             }
+
+            return Promise.resolve(callbackResult)
+              .then(function (result) {
+                console.log(
+                  "Flutter finalizou o processamento do pagamento."
+                );
+
+                return result;
+              })
+              .catch(function (error) {
+                console.error(
+                  "Erro retornado pelo Flutter:",
+                  error
+                );
+
+                if (typeof onError === "function") {
+                  onError(error);
+                }
+
+                // Não deixar o Payment Brick preso
+                // indefinidamente no loading.
+                return null;
+              });
           },
 
           onError: function (error) {
@@ -180,9 +187,11 @@
             );
 
             if (typeof onError === "function") {
-              onError(
-                JSON.stringify(error)
-              );
+              try {
+                onError(JSON.stringify(error));
+              } catch (_) {
+                onError(String(error));
+              }
             }
           },
         },
@@ -200,7 +209,10 @@
 
     destroyPaymentBrick: function () {
       if (paymentBrickController) {
-        paymentBrickController.unmount();
+        try {
+          paymentBrickController.unmount();
+        } catch (_) {}
+
         paymentBrickController = null;
       }
     },
