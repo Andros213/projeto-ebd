@@ -28,6 +28,20 @@
     });
   }
 
+  // Pega o Device ID gerado pelo security.js do Mercado Pago.
+  function getDeviceSessionId() {
+    try {
+      if (
+        typeof window.MP_DEVICE_SESSION_ID === "string" &&
+        window.MP_DEVICE_SESSION_ID.trim().length > 0
+      ) {
+        return window.MP_DEVICE_SESSION_ID.trim();
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
   window.MercadoPagoBridge = {
     initialize: function (publicKey) {
       if (!publicKey) {
@@ -45,6 +59,7 @@
       try {
         mp = new MercadoPago(publicKey, {
           locale: "pt-BR",
+          advancedFraudPrevention: true,
         });
 
         return Promise.resolve(true);
@@ -137,8 +152,31 @@
             let callbackResult;
 
             try {
+              // Pega o Device ID gerado pelo Mercado Pago.
+              const deviceSessionId = getDeviceSessionId();
+
+              // Mantém todos os dados originais do Payment Brick.
+              const paymentData = {
+                ...formData,
+              };
+
+              // Adiciona o Device ID sem alterar os demais campos.
+              if (deviceSessionId) {
+                paymentData.device_session_id =
+                  deviceSessionId;
+
+                console.log(
+                  "Device ID do Mercado Pago disponível:",
+                  true
+                );
+              } else {
+                console.warn(
+                  "Device ID do Mercado Pago não disponível."
+                );
+              }
+
               callbackResult = onSubmit(
-                JSON.stringify(formData)
+                JSON.stringify(paymentData)
               );
             } catch (error) {
               console.error(
