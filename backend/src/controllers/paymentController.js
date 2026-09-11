@@ -218,7 +218,23 @@ async function processPayment(req, res) {
                     payment.transaction_amount,
 
                 payment_method_id:
-                    payment.payment_method_id
+                    payment.payment_method_id,
+
+                pix:
+                    payment.point_of_interaction?.transaction_data
+                        ? {
+
+                            qr_code:
+                                payment.point_of_interaction.transaction_data.qr_code || null,
+
+                            qr_code_base64:
+                                payment.point_of_interaction.transaction_data.qr_code_base64 || null,
+
+                            ticket_url:
+                                payment.point_of_interaction.transaction_data.ticket_url || null
+
+                        }
+                        : null
 
             }
 
